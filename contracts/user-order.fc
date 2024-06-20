@@ -8,6 +8,7 @@ const JETTON_JETTON = 0;
 const JETTON_TON = 1;
 const TON_JETTON = 2;
 
+const exec_fwd_fee = 30000000;  ;; 0.03 TON
 
 ;; storage:
 ;; creator address
@@ -40,7 +41,7 @@ const TON_JETTON = 2;
     var msg = begin_cell()
         .store_uint(0x18, 6)
         .store_slice(wallet_address)
-        .store_coins(50000000)
+        .store_coins(exec_fwd_fee * 2)
         .store_uint(1, 107)
         .store_ref(msg_body)
         .end_cell();
@@ -57,22 +58,53 @@ const TON_JETTON = 2;
     send_raw_message(msg, 1);
 }
 
-() create_order (int order_type, slice from_jetton_addr, int from_amount, slice to_jetton_addr, int to_amount, slice to_master_address) impure {
-    (slice owner, slice master_contract, cell orders) = load_data();
+() create_jetton_jetton_order (slice from_addr, int from_amount, slice msg_cs, slice msg_from_addr) impure {
+    slice to_addr = msg_cs~load_msg_addr();
+    int to_amount = msg_cs~load_coins();
+    slice to_master_address = msg_cs~load_msg_addr();
 
-    ;; TODO: verify that jetton orders come from master contract
-    var new_order = begin_cell().store_uint(order_type, 8);
-    if (order_type != TON_JETTON) {
-        new_order = new_order.store_slice(from_jetton_addr);
-    }
+    (slice owner, slice master_contract, cell orders) = load_data();
+    throw_unless(407, equal_slices(msg_from_addr, master_contract));
+
+    var new_order = begin_cell().store_uint(JETTON_JETTON, 8);
+    new_order = new_order.store_slice(from_addr);
     new_order = new_order.store_coins(from_amount);
-    if (order_type != JETTON_TON) {
-        new_order = new_order.store_slice(to_jetton_addr);
-    }
+    new_order = new_order.store_slice(to_addr);
     new_order = new_order.store_coins(to_amount);
-    if (order_type != JETTON_TON) {
-        new_order = new_order.store_slice(to_master_address);
-    }
+    new_order = new_order.store_slice(to_master_address);
+
+    randomize_lt();
+    int new_order_id = random();
+    orders~udict_set_ref(256, new_order_id, new_order.end_cell());
+    save_data(owner, master_contract, orders);
+}
+
+() create_jetton_ton_order (slice from_addr, int from_amount, slice msg_cs, slice msg_from_addr) impure {
+    int to_amount = msg_cs~load_coins();
+
+    (slice owner, slice master_contract, cell orders) = load_data();
+    throw_unless(407, equal_slices(msg_from_addr, master_contract));
+
+    var new_order = begin_cell().store_uint(JETTON_TON, 8);
+    new_order = new_order.store_slice(from_addr);
+    new_order = new_order.store_coins(from_amount);
+    new_order = new_order.store_coins(to_amount);
+
+    randomize_lt();
+    int new_order_id = random();
+    orders~udict_set_ref(256, new_order_id, new_order.end_cell());
+    save_data(owner, master_contract, orders);
+}
+
+() create_ton_jetton_order (int from_amount, slice to_addr, int to_amount, slice to_master_address, slice msg_from_addr) impure {
+    (slice owner, slice master_contract, cell orders) = load_data();
+    throw_unless(407, equal_slices(msg_from_addr, master_contract));
+
+    var new_order = begin_cell().store_uint(TON_JETTON, 8);
+    new_order = new_order.store_coins(from_amount);
+    new_order = new_order.store_slice(to_addr);
+    new_order = new_order.store_coins(to_amount);
+    new_order = new_order.store_slice(to_master_address);
 
     randomize_lt();
     int new_order_id = random();
@@ -105,7 +137,6 @@ const TON_JETTON = 2;
 () execute_order (slice executor_address, slice ex_to_address, int ex_to_amount, int order_id, int query_id) impure {
     (slice owner, slice master_contract, cell orders) = load_data();
 
-    ;; TODO: verify that jetton orders come from master contract
     (cell order, int ok) = udict_get_ref?(orders, 256, order_id);
     throw_unless(404, ok == -1);
 
@@ -165,7 +196,7 @@ const TON_JETTON = 2;
         slice to_jetton_addr = in_msg_body~load_msg_addr();
         int to_amount = in_msg_body~load_coins();
         slice to_master_address = in_msg_body~load_msg_addr();
-        create_order(TON_JETTON, sender_address, from_amount, to_jetton_addr, to_amount, to_master_address);
+        create_ton_jetton_order(from_amount, to_jetton_addr, to_amount, to_master_address, sender_address);
         return ();
     }
 
@@ -190,10 +221,11 @@ const TON_JETTON = 2;
 
         if (fwd_op == "create_order"c) {
             int order_type = fwd_cs~load_uint(8);
-            slice to_jetton_addr = order_type != JETTON_TON ? fwd_cs~load_msg_addr() : null();
-            int to_amount = fwd_cs~load_coins();
-            slice to_master_address = order_type != JETTON_TON ? fwd_cs~load_msg_addr() : null();
-            create_order(order_type, sender_address, jetton_amount, to_jetton_addr, to_amount, to_master_address);
+            if (order_type == JETTON_JETTON) {
+                create_jetton_jetton_order(sender_address, jetton_amount, fwd_cs, from_address);
+            } else {
+                create_jetton_ton_order(sender_address, jetton_amount, fwd_cs, from_address);
+            }
         }
 
         if (fwd_op == "execute_order"c) {
