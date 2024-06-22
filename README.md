@@ -1,26 +1,24 @@
 # crypton
 
+Decentralized, permissionless protocol where users can create any token exchange orders.
+
 ## Project structure
 
--   `contracts` - source code of all the smart contracts of the project and their dependencies.
--   `wrappers` - wrapper classes (implementing `Contract` from ton-core) for the contracts, including any [de]serialization primitives and compilation functions.
+-   `contracts` - source code of Master order and User order contracts and their dependencies. Also includes base jetton implementation.
+-   `wrappers` - wrapper classes for the contracts.
 -   `tests` - tests for the contracts.
 -   `scripts` - scripts used by the project, mainly the deployment scripts.
 
 ## How to use
 
-### Build
+### Build Smart contracts
 
-`npx blueprint build` or `yarn blueprint build`
+`yarn build` or `npm run build`
 
-### Test
+### Execute tests
 
-`npx blueprint test` or `yarn blueprint test`
+`yarn test` or `npm run test`
 
-### Deploy or run another script
+### Deploy Master order contract
 
-`npx blueprint run` or `yarn blueprint run`
-
-### Add a new contract
-
-`npx blueprint create ContractName` or `yarn blueprint create ContractName`
+`yarn start deployOrder` or `npm run start deployOrder`
