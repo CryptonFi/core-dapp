@@ -69,12 +69,13 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     (_, int ok) = udict_get?(orders, 32, order_id);
     throw_unless(409, ok != -1);
 
-    var new_order = begin_cell().store_uint(JETTON_JETTON, 8);
-    new_order = new_order.store_slice(from_addr);
-    new_order = new_order.store_coins(from_amount);
-    new_order = new_order.store_slice(to_addr);
-    new_order = new_order.store_coins(to_amount);
-    new_order = new_order.store_slice(to_master_address);
+    var new_order = begin_cell().store_uint(JETTON_JETTON, 8)
+                                .store_slice(from_addr)
+                                .store_coins(from_amount)
+                                .store_coins(from_amount)
+                                .store_slice(to_addr)
+                                .store_coins(to_amount)
+                                .store_slice(to_master_address);
 
     orders~udict_set_ref(32, order_id, new_order.end_cell());
     save_data(owner, master_contract, orders);
@@ -89,10 +90,11 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     (_, int ok) = udict_get?(orders, 32, order_id);
     throw_unless(409, ok != -1);
 
-    var new_order = begin_cell().store_uint(JETTON_TON, 8);
-    new_order = new_order.store_slice(from_addr);
-    new_order = new_order.store_coins(from_amount);
-    new_order = new_order.store_coins(to_amount);
+    var new_order = begin_cell().store_uint(JETTON_TON, 8)
+                                .store_slice(from_addr)
+                                .store_coins(from_amount)
+                                .store_coins(from_amount)
+                                .store_coins(to_amount);
 
     orders~udict_set_ref(32, order_id, new_order.end_cell());
     save_data(owner, master_contract, orders);
@@ -105,11 +107,12 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     (_, int ok) = udict_get?(orders, 32, order_id);
     throw_unless(409, ok != -1);
 
-    var new_order = begin_cell().store_uint(TON_JETTON, 8);
-    new_order = new_order.store_coins(from_amount);
-    new_order = new_order.store_slice(to_addr);
-    new_order = new_order.store_coins(to_amount);
-    new_order = new_order.store_slice(to_master_address);
+    var new_order = begin_cell().store_uint(TON_JETTON, 8)
+                                .store_coins(from_amount)
+                                .store_coins(from_amount)
+                                .store_slice(to_addr)
+                                .store_coins(to_amount)
+                                .store_slice(to_master_address);
 
     orders~udict_set_ref(32, order_id, new_order.end_cell());
     save_data(owner, master_contract, orders);
@@ -125,12 +128,13 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     slice order_cs = order.begin_parse();
     int order_type = order_cs~load_uint(8);
     slice order_from_address = (order_type != TON_JETTON) ? order_cs~load_msg_addr() : null();
-    int order_from_amount = order_cs~load_coins();
+    order_cs~load_coins();  ;; from_amount
+    int order_from_amount_left = order_cs~load_coins();
 
     if (order_type == TON_JETTON) {
-        send_ton(sender, order_from_amount);
+        send_ton(sender, order_from_amount_left);
     } else {
-        send_jettons(order_from_address, sender, order_from_amount, query_id);
+        send_jettons(order_from_address, sender, order_from_amount_left, query_id);
     }
 
     orders~udict_delete?(32, order_id);
@@ -147,6 +151,7 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     int order_type = order_cs~load_uint(8);
     slice order_from_address = (order_type != TON_JETTON) ? order_cs~load_msg_addr() : null();
     int order_from_amount = order_cs~load_coins();
+    int order_from_amount_left = order_cs~load_coins();
 
     slice order_to_address = null();
     if (order_type != JETTON_TON) {
@@ -155,24 +160,44 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     }
 
     int order_to_amount = order_cs~load_coins();
-    ;; TODO: for jetton-ton orders we should check order_to_amount <= ex_to_amount + commission
-    throw_unless(406, order_to_amount <= ex_to_amount);
+
+    int ex_from_amount = min(order_from_amount_left, order_from_amount * ex_to_amount / order_to_amount);
+    order_from_amount_left -= ex_from_amount;
 
     ;; send tokens to order creator
     if (order_type == JETTON_TON) {
-        send_ton(owner, order_to_amount);
+        send_ton(owner, ex_to_amount);
     } else {
-        send_jettons(order_to_address, owner, order_to_amount, query_id);
+        send_jettons(order_to_address, owner, ex_to_amount, query_id);
     }
 
     ;; send order tokens to executor
     if (order_type == TON_JETTON) {
-        send_ton(executor_address, order_from_amount);
+        send_ton(executor_address, ex_from_amount);
     } else {
-        send_jettons(order_from_address, executor_address, order_from_amount, query_id);
+        send_jettons(order_from_address, executor_address, ex_from_amount, query_id);
     }
 
-    orders~udict_delete?(32, order_id);
+    if (order_from_amount_left == 0) {
+        orders~udict_delete?(32, order_id);
+    } else {
+        var order = begin_cell().store_uint(order_type, 8);
+        if (order_type != TON_JETTON) {
+            order = order.store_slice(order_from_address);
+        }
+        order = order.store_coins(order_from_amount);
+        order = order.store_coins(order_from_amount_left);
+        if (order_type != JETTON_TON) {
+            order = order.store_slice(order_to_address);
+        }
+        order = order.store_coins(order_to_amount);
+        if (order_type != JETTON_TON) {
+            order = order.store_slice(order_cs~load_msg_addr());
+        }
+
+        orders~udict_set_ref(32, order_id, order.end_cell());
+    }
+
     save_data(owner, master_contract, orders);
 }
 
@@ -206,7 +231,10 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
 
     if (op == "execute_ton_order"c) {
         int order_id = in_msg_body~load_uint(32);
-        execute_order(sender_address, sender_address, msg_value, order_id, query_id);
+        int ex_to_amount = in_msg_body~load_coins();
+        throw_unless(406, msg_value >= ex_to_amount + exec_fwd_fee * 3);
+
+        execute_order(sender_address, sender_address, ex_to_amount, order_id, query_id);
         return ();
     }
 

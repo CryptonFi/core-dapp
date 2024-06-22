@@ -4,7 +4,7 @@ import '@ton/test-utils';
 import { JettonMinter } from '../wrappers/JettonMinter';
 import { JettonWallet } from '../wrappers/JettonWallet';
 import { MasterOrder } from '../wrappers/MasterOrder';
-import { OrderType, UserOrder } from '../wrappers/UserOrder';
+import { OrderData, OrderType, UserOrder } from '../wrappers/UserOrder';
 
 export async function deployJettonWithWallet(
     blockchain: Blockchain,
@@ -145,12 +145,10 @@ export async function assertJettonBalanceEqual(blockchain: Blockchain, jettonAdd
     expect(await jettonWallet.getJettonBalance()).toEqual(equalTo);
 }
 
-export async function getOrderID(userOrder: SandboxContract<UserOrder>, orderType: OrderType): Promise<bigint | null> {
+export async function getOrderByID(
+    userOrder: SandboxContract<UserOrder>,
+    orderId: number,
+): Promise<OrderData | undefined> {
     const ordersDict = await userOrder.getOrders();
-    for (var orderId of ordersDict.keys()) {
-        if (ordersDict.get(orderId)!.orderType === orderType) {
-            return orderId;
-        }
-    }
-    return null;
+    return ordersDict.get(BigInt(orderId));
 }

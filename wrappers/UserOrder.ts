@@ -22,6 +22,7 @@ export type OrderData = {
     orderType: number;
     fromAddress: Address | null;
     fromAmount: bigint;
+    fromAmountLeft: bigint;
     toAddress: Address | null;
     toAmount: bigint;
     toMasterAddress: Address | null;
@@ -71,7 +72,8 @@ export class UserOrder implements Contract {
         opts: {
             value: bigint;
             queryId: number;
-            orderId: bigint;
+            orderId: number;
+            amount: bigint;
         },
     ) {
         const result = await provider.internal(via, {
@@ -81,6 +83,7 @@ export class UserOrder implements Contract {
                 .storeUint(0x3b016c81, 32) // execute_order
                 .storeUint(opts.queryId, 64)
                 .storeUint(opts.orderId, 32)
+                .storeCoins(opts.amount)
                 .endCell(),
         });
 
@@ -93,7 +96,7 @@ export class UserOrder implements Contract {
         opts: {
             value: bigint;
             queryId: number;
-            orderId: bigint;
+            orderId: number;
         },
     ) {
         const result = await provider.internal(via, {
@@ -126,6 +129,7 @@ const orderDataSerializer = {
             .storeUint(src.orderType, 8)
             .storeAddress(src.fromAddress)
             .storeCoins(src.fromAmount)
+            .storeCoins(src.fromAmountLeft)
             .storeAddress(src.toAddress)
             .storeCoins(src.toAmount)
             .storeAddress(src.toMasterAddress)
@@ -137,9 +141,10 @@ const orderDataSerializer = {
         const orderType = val.loadUint(8);
         const fromAddress = orderType != OrderType.TON_JETTON ? val.loadAddress() : null;
         const fromAmount = BigInt(val.loadCoins());
+        const fromAmountLeft = BigInt(val.loadCoins());
         const toAddress = orderType != OrderType.JETTON_TON ? val.loadAddress() : null;
         const toAmount = BigInt(val.loadCoins());
         const toMasterAddress = orderType != OrderType.JETTON_TON ? val.loadAddress() : null;
-        return { orderType, fromAddress, fromAmount, toAddress, toAmount, toMasterAddress };
+        return { orderType, fromAddress, fromAmount, fromAmountLeft, toAddress, toAmount, toMasterAddress };
     },
 };

@@ -52,7 +52,7 @@ export class MasterOrder implements Contract {
             orderId: number;
             fromAmount: bigint;
             toAddress: Address;
-            toAmount: number;
+            toAmount: bigint;
             toMasterAddress: Address;
         },
     ) {

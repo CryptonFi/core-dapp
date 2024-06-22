@@ -10,7 +10,7 @@ import {
     createJettonOrderPosition,
     createJettonTonOrderPosition,
     deployJettonWithWallet,
-    getOrderID,
+    getOrderByID,
     setupMasterOrder,
 } from './helpers';
 import { MasterOrder } from '../wrappers/MasterOrder';
@@ -61,7 +61,7 @@ describe('UserOrder', () => {
                     jettonMinterCode,
                     jettonWalletCode,
                     creator.address,
-                    100n,
+                    toNano(100),
                 ),
             );
             jettonsExecutor.push(
@@ -71,7 +71,7 @@ describe('UserOrder', () => {
                     jettonMinterCode,
                     jettonWalletCode,
                     executor.address,
-                    100n,
+                    toNano(100),
                 ),
             );
         }
@@ -81,9 +81,9 @@ describe('UserOrder', () => {
             masterOrder,
             1,
             jettonsCreator[0].jettonWallet,
-            10n,
+            toNano(10),
             jettonsExecutor[0].jettonMinter,
-            20n,
+            toNano(20),
         );
 
         userOrder = blockchain.openContract(
@@ -97,11 +97,11 @@ describe('UserOrder', () => {
         const orderId = ordersDict.keys()[0];
 
         const result = await jettonsExecutor[0].jettonWallet.sendTransfer(executor.getSender(), {
-            value: toNano('0.4'),
+            value: toNano(0.4),
             toAddress: userOrder.address,
             queryId: 123,
-            jettonAmount: 20n,
-            fwdAmount: toNano('0.3'),
+            jettonAmount: toNano(20),
+            fwdAmount: toNano(0.3),
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
@@ -171,8 +171,8 @@ describe('UserOrder', () => {
         expect((await userOrder.getOrders())?.keys().length).toEqual(0);
 
         // Valid jetton balances after execution
-        await assertJettonBalanceEqual(blockchain, jetton2_creator_wallet, 20n);
-        await assertJettonBalanceEqual(blockchain, jetton1_executor_wallet, 10n);
+        await assertJettonBalanceEqual(blockchain, jetton2_creator_wallet, toNano(20));
+        await assertJettonBalanceEqual(blockchain, jetton1_executor_wallet, toNano(10));
     });
 
     it('create and execute multiple orders successfull', async () => {
@@ -182,17 +182,18 @@ describe('UserOrder', () => {
             masterOrder,
             2,
             jettonsCreator[1].jettonWallet,
-            10n,
+            toNano(10),
             jettonsExecutor[1].jettonMinter,
-            20n,
+            toNano(20),
         );
+        expect((await userOrder.getOrders())?.keys().length).toEqual(2);
 
         await jettonsExecutor[0].jettonWallet.sendTransfer(executor.getSender(), {
-            value: toNano('0.4'),
+            value: toNano(0.4),
             toAddress: userOrder.address,
             queryId: 123,
-            jettonAmount: 20n,
-            fwdAmount: toNano('0.3'),
+            jettonAmount: toNano(20),
+            fwdAmount: toNano(0.3),
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
@@ -204,11 +205,11 @@ describe('UserOrder', () => {
         // Execute second order
         const order2Id = (await userOrder.getOrders()).keys()[0];
         await jettonsExecutor[1].jettonWallet.sendTransfer(executor.getSender(), {
-            value: toNano('0.4'),
+            value: toNano(0.4),
             toAddress: userOrder.address,
             queryId: 123,
-            jettonAmount: 20n,
-            fwdAmount: toNano('0.3'),
+            jettonAmount: toNano(20),
+            fwdAmount: toNano(0.3),
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
@@ -219,22 +220,22 @@ describe('UserOrder', () => {
     });
 
     it('execute ton-jetton order successfull', async () => {
+        const test_order_id = 2;
+
         const user_order_address = await masterOrder.getWalletAddress(creator.address);
         const user_order_jetton2_address = await jettonsExecutor[1].jettonMinter.getWalletAddress(user_order_address);
         // Create an order
         await masterOrder.sendCreateTonJettonOrder(creator.getSender(), {
-            value: toNano('0.2'),
+            value: toNano(0.2),
             queryId: 123,
-            orderId: 2,
-            fromAmount: toNano('10'),
+            orderId: test_order_id,
+            fromAmount: toNano(10),
             toAddress: user_order_jetton2_address,
-            toAmount: 20,
+            toAmount: toNano(20),
             toMasterAddress: jettonsExecutor[1].jettonMinter.address,
         });
 
-        // TODO: refactor
-        const orderId = await getOrderID(userOrder, OrderType.TON_JETTON);
-        expect(orderId).not.toBeNull();
+        expect(await getOrderByID(userOrder, test_order_id)).toBeTruthy();
 
         const executor_balance = await executor.getBalance();
         // Execute
@@ -242,8 +243,8 @@ describe('UserOrder', () => {
             value: toNano('0.2'),
             toAddress: userOrder.address,
             queryId: 123,
-            jettonAmount: 20n,
-            fwdAmount: toNano('0.1'),
+            jettonAmount: toNano(20),
+            fwdAmount: toNano(0.1),
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
@@ -303,25 +304,36 @@ describe('UserOrder', () => {
 
         // 1 jetton-jetton order left
         expect((await userOrder.getOrders())?.keys().length).toEqual(1);
+        expect(await getOrderByID(userOrder, test_order_id)).not.toBeTruthy();
 
         // Valid jetton balances after execution
-        await assertJettonBalanceEqual(blockchain, jetton2_creator_wallet, 20n);
+        await assertJettonBalanceEqual(blockchain, jetton2_creator_wallet, toNano(20));
         // 0.2 - commission
-        expect((await executor.getBalance()) - executor_balance).toBeGreaterThan(toNano('9.8'));
+        expect((await executor.getBalance()) - executor_balance).toBeGreaterThan(toNano(9.8));
     });
 
     it('execute jetton-ton order successfull', async () => {
+        const test_order_id = 2;
+
         // Create order
-        await createJettonTonOrderPosition(creator, masterOrder, jettonsCreator[0].jettonWallet, 2, 10n, toNano('20'));
-        const orderId = await getOrderID(userOrder, OrderType.JETTON_TON);
-        expect(orderId).not.toBeNull();
+        await createJettonTonOrderPosition(
+            creator,
+            masterOrder,
+            jettonsCreator[0].jettonWallet,
+            test_order_id,
+            toNano(10),
+            toNano(20),
+        );
+        expect(await getOrderByID(userOrder, test_order_id)).toBeTruthy();
+
         const creatorBalance = await creator.getBalance();
 
         // Execute an order
         const result = await userOrder.sendExecuteJettonTonOrder(executor.getSender(), {
-            value: toNano('20.2'),
+            value: toNano(20.2),
             queryId: 125,
-            orderId: orderId as bigint,
+            orderId: test_order_id,
+            amount: toNano(20),
         });
 
         // User -> User Order
@@ -360,22 +372,191 @@ describe('UserOrder', () => {
 
         // 1 order is from setup for jetton-jetton
         expect((await userOrder.getOrders())?.keys().length).toEqual(1);
+        expect(await getOrderByID(userOrder, test_order_id)).not.toBeTruthy();
 
         // Valid balances after execution
         // ~0.1 ton commission
-        expect((await creator.getBalance()) - creatorBalance).toBeGreaterThan(toNano('20') - toNano(0.1));
-        await assertJettonBalanceEqual(blockchain, jetton1_executor_wallet, 10n);
+        expect((await creator.getBalance()) - creatorBalance).toBeGreaterThan(toNano(20) - toNano(0.1));
+        await assertJettonBalanceEqual(blockchain, jetton1_executor_wallet, toNano(10));
     });
 
-    it('close jetton-jetton order successfull', async () => {
-        // TODO: refactor
+    it('execute partial jetton-jetton order successfull', async () => {
         const ordersDict = await userOrder.getOrders();
         const orderId = ordersDict.keys()[0];
 
-        const result = await userOrder.sendCloseOrder(creator.getSender(), {
-            value: toNano('0.2'),
+        await jettonsExecutor[0].jettonWallet.sendTransfer(executor.getSender(), {
+            value: toNano(0.4),
+            toAddress: userOrder.address,
             queryId: 123,
-            orderId: orderId,
+            jettonAmount: toNano(5), // 0.25 part of whole order
+            fwdAmount: toNano(0.3),
+            fwdPayload: beginCell()
+                .storeUint(0xa0cef9d9, 32) // op code - execute_order
+                .storeUint(234, 64) // query id
+                .storeUint(orderId, 32) // order id
+                .endCell(),
+        });
+
+        const all_orders = await userOrder.getOrders();
+        expect(all_orders?.keys().length).toEqual(1);
+
+        // Valid order balance
+        const order = all_orders.get(orderId);
+        expect(order?.fromAmount).toEqual(toNano(10));
+        expect(order?.fromAmountLeft).toEqual(toNano(7.5));
+        expect(order?.toAmount).toEqual(toNano(20));
+
+        // Valid order balance in wallets
+        const jetton1_wallet_user_order = await jettonsCreator[0].jettonMinter.getWalletAddress(userOrder.address);
+        await assertJettonBalanceEqual(blockchain, jetton1_wallet_user_order, toNano(7.5));
+
+        // Valid user balances after execution
+        const jetton2_creator_wallet = await jettonsExecutor[0].jettonMinter.getWalletAddress(creator.address);
+        await assertJettonBalanceEqual(blockchain, jetton2_creator_wallet, toNano(5));
+        const jetton1_executor_wallet = await jettonsCreator[0].jettonMinter.getWalletAddress(executor.address);
+        await assertJettonBalanceEqual(blockchain, jetton1_executor_wallet, toNano(2.5));
+    });
+
+    it('execute partial jetton-jetton order multiple times', async () => {
+        const ordersDict = await userOrder.getOrders();
+        const orderId = ordersDict.keys()[0];
+
+        for (var i = 0; i < 5; i++)
+            await jettonsExecutor[0].jettonWallet.sendTransfer(executor.getSender(), {
+                value: toNano(0.3),
+                toAddress: userOrder.address,
+                queryId: 123,
+                jettonAmount: toNano(2), // 2/20 part of whole order
+                fwdAmount: toNano(0.2),
+                fwdPayload: beginCell()
+                    .storeUint(0xa0cef9d9, 32) // op code - execute_order
+                    .storeUint(234, 64) // query id
+                    .storeUint(orderId, 32) // order id
+                    .endCell(),
+            });
+
+        const all_orders = await userOrder.getOrders();
+        expect(all_orders?.keys().length).toEqual(1);
+
+        // Valid order balance
+        const order = all_orders.get(orderId);
+        expect(order?.fromAmount).toEqual(toNano(10));
+        expect(order?.fromAmountLeft).toEqual(toNano(10 - 5 * 10 * (2 / 20)));
+        expect(order?.toAmount).toEqual(toNano(20));
+
+        // Valid order balance in wallets
+        const jetton1_wallet_user_order = await jettonsCreator[0].jettonMinter.getWalletAddress(userOrder.address);
+        await assertJettonBalanceEqual(blockchain, jetton1_wallet_user_order, toNano(10 - 5 * 10 * (2 / 20)));
+
+        // Valid user balances after execution
+        const jetton2_creator_wallet = await jettonsExecutor[0].jettonMinter.getWalletAddress(creator.address);
+        await assertJettonBalanceEqual(blockchain, jetton2_creator_wallet, toNano(5 * 20 * (2 / 20)));
+        const jetton1_executor_wallet = await jettonsCreator[0].jettonMinter.getWalletAddress(executor.address);
+        await assertJettonBalanceEqual(blockchain, jetton1_executor_wallet, toNano(5 * 10 * (2 / 20)));
+    });
+
+    it('execute partial ton-jetton order successfull', async () => {
+        const test_order_id = 2;
+
+        const user_order_address = await masterOrder.getWalletAddress(creator.address);
+        const user_order_jetton2_address = await jettonsExecutor[1].jettonMinter.getWalletAddress(user_order_address);
+        // Create an order
+        await masterOrder.sendCreateTonJettonOrder(creator.getSender(), {
+            value: toNano(0.2),
+            queryId: 123,
+            orderId: test_order_id,
+            fromAmount: toNano(10),
+            toAddress: user_order_jetton2_address,
+            toAmount: toNano(20),
+            toMasterAddress: jettonsExecutor[1].jettonMinter.address,
+        });
+
+        expect(await getOrderByID(userOrder, test_order_id)).toBeTruthy();
+
+        const before_execution = await executor.getBalance();
+
+        // Execute
+        await jettonsExecutor[1].jettonWallet.sendTransfer(executor.getSender(), {
+            value: toNano('0.2'),
+            toAddress: userOrder.address,
+            queryId: 123,
+            jettonAmount: toNano(8), // 8/20 part of whole order
+            fwdAmount: toNano(0.1),
+            fwdPayload: beginCell()
+                .storeUint(0xa0cef9d9, 32) // op code - execute_order
+                .storeUint(234, 64) // query id
+                .storeUint(2, 32) // order id
+                .endCell(),
+        });
+
+        const order = await getOrderByID(userOrder, test_order_id);
+        expect(order).toBeTruthy();
+
+        // Valid order balance
+        expect(order?.fromAmount).toEqual(toNano(10));
+        expect(order?.fromAmountLeft).toEqual(toNano(10 - (10 * 8) / 20));
+        expect(order?.toAmount).toEqual(toNano(20));
+
+        // Valid order balance in wallets
+        let balance = (await blockchain.getContract(user_order_address)).balance;
+        expect(balance).toBeGreaterThan(toNano(10 - (10 * 8) / 20));
+
+        // Valid user balances after execution
+        const jetton2_creator_wallet = await jettonsExecutor[1].jettonMinter.getWalletAddress(creator.address);
+        await assertJettonBalanceEqual(blockchain, jetton2_creator_wallet, toNano(8));
+        const executor_balance = await executor.getBalance();
+        expect(executor_balance - before_execution).toBeGreaterThan(toNano((10 * 8) / 20 - 0.2));
+    });
+
+    it('execute partial jetton-ton order successfull', async () => {
+        const test_order_id = 2;
+
+        // Create order
+        await createJettonTonOrderPosition(
+            creator,
+            masterOrder,
+            jettonsCreator[1].jettonWallet,
+            test_order_id,
+            toNano(10),
+            toNano(20),
+        );
+        expect(await getOrderByID(userOrder, test_order_id)).toBeTruthy();
+
+        const before_execution = await creator.getBalance();
+
+        // Execute an order
+        await userOrder.sendExecuteJettonTonOrder(executor.getSender(), {
+            value: toNano(1.2),
+            queryId: 125,
+            orderId: test_order_id,
+            amount: toNano(1),
+        });
+
+        const order = await getOrderByID(userOrder, test_order_id);
+        expect(order).toBeTruthy();
+
+        // Valid order balance
+        expect(order?.fromAmount).toEqual(toNano(10));
+        expect(order?.fromAmountLeft).toEqual(toNano(10 - (10 * 1) / 20));
+        expect(order?.toAmount).toEqual(toNano(20));
+
+        // Valid order balance in wallets
+        const jetton1_wallet_user_order = await jettonsCreator[1].jettonMinter.getWalletAddress(userOrder.address);
+        await assertJettonBalanceEqual(blockchain, jetton1_wallet_user_order, toNano(10 - (10 * 1) / 20));
+
+        // Valid order balance in wallets
+        expect((await creator.getBalance()) - before_execution).toBeGreaterThan(toNano((10 * 1) / 20 - 0.2)); // ~0.2 ton commission
+        const jetton1_executor_wallet = await jettonsCreator[1].jettonMinter.getWalletAddress(executor.address);
+        await assertJettonBalanceEqual(blockchain, jetton1_executor_wallet, toNano(10 / 20));
+    });
+
+    it('close jetton-jetton order successfull', async () => {
+        const test_order_id = 1; // created in test setup
+
+        const result = await userOrder.sendCloseOrder(creator.getSender(), {
+            value: toNano(0.2),
+            queryId: 123,
+            orderId: test_order_id,
         });
 
         // User -> User Order
@@ -407,31 +588,32 @@ describe('UserOrder', () => {
         expect((await userOrder.getOrders())?.keys().length).toEqual(0);
 
         // Valid jetton balances after execution
-        await assertJettonBalanceEqual(blockchain, jetton1_creator_wallet, 100n);
+        await assertJettonBalanceEqual(blockchain, jetton1_creator_wallet, toNano(100));
     });
 
     it('close ton-jetton order successfull', async () => {
+        const test_order_id = 2;
+
         const user_order_address = await masterOrder.getWalletAddress(creator.address);
         const user_order_jetton2_address = await jettonsExecutor[1].jettonMinter.getWalletAddress(user_order_address);
         // Create an order
         await masterOrder.sendCreateTonJettonOrder(creator.getSender(), {
-            value: toNano('0.2'),
+            value: toNano(0.2),
             queryId: 123,
             orderId: 2,
-            fromAmount: toNano('10'),
+            fromAmount: toNano(10),
             toAddress: user_order_jetton2_address,
-            toAmount: 20,
+            toAmount: toNano(20),
             toMasterAddress: jettonsExecutor[1].jettonMinter.address,
         });
-        const orderId = await getOrderID(userOrder, OrderType.TON_JETTON);
-        expect(orderId).not.toBeNull();
+        expect(await getOrderByID(userOrder, test_order_id)).toBeTruthy();
 
         const creator_balance = await creator.getBalance();
 
         const result = await userOrder.sendCloseOrder(creator.getSender(), {
-            value: toNano('0.2'),
+            value: toNano(0.2),
             queryId: 123,
-            orderId: orderId as bigint,
+            orderId: test_order_id,
         });
 
         // User -> User Order
@@ -452,6 +634,6 @@ describe('UserOrder', () => {
         });
 
         expect((await userOrder.getOrders())?.keys().length).toEqual(1);
-        expect((await creator.getBalance()) - creator_balance).toBeGreaterThan(toNano('9.7'));
+        expect((await creator.getBalance()) - creator_balance).toBeGreaterThan(toNano(9.7));
     });
 });
