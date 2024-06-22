@@ -80,7 +80,7 @@ export class UserOrder implements Contract {
             body: beginCell()
                 .storeUint(0x3b016c81, 32) // execute_order
                 .storeUint(opts.queryId, 64)
-                .storeUint(opts.orderId, 256)
+                .storeUint(opts.orderId, 32)
                 .endCell(),
         });
 
@@ -102,7 +102,7 @@ export class UserOrder implements Contract {
             body: beginCell()
                 .storeUint(0xdf32c0c8, 32) // close_order
                 .storeUint(opts.queryId, 64)
-                .storeUint(opts.orderId, 256)
+                .storeUint(opts.orderId, 32)
                 .endCell(),
         });
 
@@ -114,7 +114,7 @@ export class UserOrder implements Contract {
         let orders: Dictionary<bigint, OrderData> = Dictionary.empty();
         const orders_cell = stack.readCellOpt();
         if (orders_cell) {
-            orders = orders_cell?.beginParse().loadDictDirect(Dictionary.Keys.BigUint(256), orderDataSerializer);
+            orders = orders_cell?.beginParse().loadDictDirect(Dictionary.Keys.BigUint(32), orderDataSerializer);
         }
         return orders;
     }

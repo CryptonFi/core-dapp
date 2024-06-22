@@ -79,6 +79,7 @@ describe('UserOrder', () => {
         await createJettonOrderPosition(
             creator,
             masterOrder,
+            1,
             jettonsCreator[0].jettonWallet,
             10n,
             jettonsExecutor[0].jettonMinter,
@@ -104,7 +105,7 @@ describe('UserOrder', () => {
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
-                .storeUint(orderId, 256) // order id
+                .storeUint(orderId, 32) // order id
                 .endCell(),
         });
 
@@ -179,6 +180,7 @@ describe('UserOrder', () => {
         await createJettonOrderPosition(
             creator,
             masterOrder,
+            2,
             jettonsCreator[1].jettonWallet,
             10n,
             jettonsExecutor[1].jettonMinter,
@@ -194,7 +196,7 @@ describe('UserOrder', () => {
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
-                .storeUint(order1Id, 256) // order id
+                .storeUint(order1Id, 32) // order id
                 .endCell(),
         });
         expect((await userOrder.getOrders())?.keys().length).toEqual(1);
@@ -210,7 +212,7 @@ describe('UserOrder', () => {
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
-                .storeUint(order2Id, 256) // order id
+                .storeUint(order2Id, 32) // order id
                 .endCell(),
         });
         expect((await userOrder.getOrders())?.keys().length).toEqual(0);
@@ -223,11 +225,14 @@ describe('UserOrder', () => {
         await masterOrder.sendCreateTonJettonOrder(creator.getSender(), {
             value: toNano('0.2'),
             queryId: 123,
+            orderId: 2,
             fromAmount: toNano('10'),
             toAddress: user_order_jetton2_address,
             toAmount: 20,
             toMasterAddress: jettonsExecutor[1].jettonMinter.address,
         });
+
+        // TODO: refactor
         const orderId = await getOrderID(userOrder, OrderType.TON_JETTON);
         expect(orderId).not.toBeNull();
 
@@ -242,7 +247,7 @@ describe('UserOrder', () => {
             fwdPayload: beginCell()
                 .storeUint(0xa0cef9d9, 32) // op code - execute_order
                 .storeUint(234, 64) // query id
-                .storeUint(orderId as bigint, 256) // order id
+                .storeUint(2, 32) // order id
                 .endCell(),
         });
 
@@ -307,7 +312,7 @@ describe('UserOrder', () => {
 
     it('execute jetton-ton order successfull', async () => {
         // Create order
-        await createJettonTonOrderPosition(creator, masterOrder, jettonsCreator[0].jettonWallet, 10n, toNano('20'));
+        await createJettonTonOrderPosition(creator, masterOrder, jettonsCreator[0].jettonWallet, 2, 10n, toNano('20'));
         const orderId = await getOrderID(userOrder, OrderType.JETTON_TON);
         expect(orderId).not.toBeNull();
         const creatorBalance = await creator.getBalance();
@@ -363,6 +368,7 @@ describe('UserOrder', () => {
     });
 
     it('close jetton-jetton order successfull', async () => {
+        // TODO: refactor
         const ordersDict = await userOrder.getOrders();
         const orderId = ordersDict.keys()[0];
 
@@ -411,6 +417,7 @@ describe('UserOrder', () => {
         await masterOrder.sendCreateTonJettonOrder(creator.getSender(), {
             value: toNano('0.2'),
             queryId: 123,
+            orderId: 2,
             fromAmount: toNano('10'),
             toAddress: user_order_jetton2_address,
             toAmount: 20,

@@ -85,6 +85,7 @@ export async function setupMasterOrder(
 export async function createJettonOrderPosition(
     creator: SandboxContract<TreasuryContract>,
     masterOrder: SandboxContract<MasterOrder>,
+    orderId: number,
     fromJettonWallet: SandboxContract<JettonWallet>,
     fromAmount: bigint,
     toJettonMinter: SandboxContract<JettonMinter>,
@@ -103,6 +104,7 @@ export async function createJettonOrderPosition(
             .storeUint(0xc1c6ebf9, 32) // op code - create_order
             .storeUint(111, 64) // query id
             .storeUint(OrderType.JETTON_JETTON, 8)
+            .storeUint(orderId, 32)
             .storeAddress(user_order_jetton_address)
             .storeCoins(toAmount)
             .storeAddress(toJettonMinter.address)
@@ -116,6 +118,7 @@ export async function createJettonTonOrderPosition(
     creator: SandboxContract<TreasuryContract>,
     masterOrder: SandboxContract<MasterOrder>,
     fromJettonWallet: SandboxContract<JettonWallet>,
+    orderId: number,
     fromAmount: bigint,
     toAmount: bigint,
 ) {
@@ -129,6 +132,7 @@ export async function createJettonTonOrderPosition(
             .storeUint(0xc1c6ebf9, 32) // op code - create_order
             .storeUint(123, 64) // query id
             .storeUint(OrderType.JETTON_TON, 8)
+            .storeUint(orderId, 32)
             .storeCoins(toAmount)
             .endCell(),
     });

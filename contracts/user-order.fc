@@ -58,13 +58,16 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     send_raw_message(msg, 1);
 }
 
-() create_jetton_jetton_order (slice from_addr, int from_amount, slice msg_cs, slice msg_from_addr) impure {
+() create_jetton_jetton_order (int order_id, slice from_addr, int from_amount, slice msg_cs, slice msg_from_addr) impure {
     slice to_addr = msg_cs~load_msg_addr();
     int to_amount = msg_cs~load_coins();
     slice to_master_address = msg_cs~load_msg_addr();
 
     (slice owner, slice master_contract, cell orders) = load_data();
     throw_unless(407, equal_slices(msg_from_addr, master_contract));
+
+    (_, int ok) = udict_get?(orders, 32, order_id);
+    throw_unless(409, ok != -1);
 
     var new_order = begin_cell().store_uint(JETTON_JETTON, 8);
     new_order = new_order.store_slice(from_addr);
@@ -73,32 +76,34 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     new_order = new_order.store_coins(to_amount);
     new_order = new_order.store_slice(to_master_address);
 
-    randomize_lt();
-    int new_order_id = random();
-    orders~udict_set_ref(256, new_order_id, new_order.end_cell());
+    orders~udict_set_ref(32, order_id, new_order.end_cell());
     save_data(owner, master_contract, orders);
 }
 
-() create_jetton_ton_order (slice from_addr, int from_amount, slice msg_cs, slice msg_from_addr) impure {
+() create_jetton_ton_order (int order_id, slice from_addr, int from_amount, slice msg_cs, slice msg_from_addr) impure {
     int to_amount = msg_cs~load_coins();
 
     (slice owner, slice master_contract, cell orders) = load_data();
     throw_unless(407, equal_slices(msg_from_addr, master_contract));
+
+    (_, int ok) = udict_get?(orders, 32, order_id);
+    throw_unless(409, ok != -1);
 
     var new_order = begin_cell().store_uint(JETTON_TON, 8);
     new_order = new_order.store_slice(from_addr);
     new_order = new_order.store_coins(from_amount);
     new_order = new_order.store_coins(to_amount);
 
-    randomize_lt();
-    int new_order_id = random();
-    orders~udict_set_ref(256, new_order_id, new_order.end_cell());
+    orders~udict_set_ref(32, order_id, new_order.end_cell());
     save_data(owner, master_contract, orders);
 }
 
-() create_ton_jetton_order (int from_amount, slice to_addr, int to_amount, slice to_master_address, slice msg_from_addr) impure {
+() create_ton_jetton_order (int order_id, int from_amount, slice to_addr, int to_amount, slice to_master_address, slice msg_from_addr) impure {
     (slice owner, slice master_contract, cell orders) = load_data();
     throw_unless(407, equal_slices(msg_from_addr, master_contract));
+
+    (_, int ok) = udict_get?(orders, 32, order_id);
+    throw_unless(409, ok != -1);
 
     var new_order = begin_cell().store_uint(TON_JETTON, 8);
     new_order = new_order.store_coins(from_amount);
@@ -106,9 +111,7 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     new_order = new_order.store_coins(to_amount);
     new_order = new_order.store_slice(to_master_address);
 
-    randomize_lt();
-    int new_order_id = random();
-    orders~udict_set_ref(256, new_order_id, new_order.end_cell());
+    orders~udict_set_ref(32, order_id, new_order.end_cell());
     save_data(owner, master_contract, orders);
 }
 
@@ -116,7 +119,7 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     (slice owner, slice master_contract, cell orders) = load_data();
     throw_unless(403, equal_slices(sender, owner));
 
-    (cell order, int ok) = udict_get_ref?(orders, 256, order_id);
+    (cell order, int ok) = udict_get_ref?(orders, 32, order_id);
     throw_unless(404, ok == -1);
 
     slice order_cs = order.begin_parse();
@@ -130,14 +133,14 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
         send_jettons(order_from_address, sender, order_from_amount, query_id);
     }
 
-    orders~udict_delete?(256, order_id);
+    orders~udict_delete?(32, order_id);
     save_data(owner, master_contract, orders);
 }
 
 () execute_order (slice executor_address, slice ex_to_address, int ex_to_amount, int order_id, int query_id) impure {
     (slice owner, slice master_contract, cell orders) = load_data();
 
-    (cell order, int ok) = udict_get_ref?(orders, 256, order_id);
+    (cell order, int ok) = udict_get_ref?(orders, 32, order_id);
     throw_unless(404, ok == -1);
 
     slice order_cs = order.begin_parse();
@@ -162,14 +165,14 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
         send_jettons(order_to_address, owner, order_to_amount, query_id);
     }
 
-    ;; send order tokens to executor + reward
+    ;; send order tokens to executor
     if (order_type == TON_JETTON) {
         send_ton(executor_address, order_from_amount);
     } else {
         send_jettons(order_from_address, executor_address, order_from_amount, query_id);
     }
 
-    orders~udict_delete?(256, order_id);
+    orders~udict_delete?(32, order_id);
     save_data(owner, master_contract, orders);
 }
 
@@ -192,22 +195,23 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     int query_id = in_msg_body~load_uint(64);
 
     if (op == "create_ton_order"c) {
+        int order_id = in_msg_body~load_uint(32);
         int from_amount = in_msg_body~load_coins();
         slice to_jetton_addr = in_msg_body~load_msg_addr();
         int to_amount = in_msg_body~load_coins();
         slice to_master_address = in_msg_body~load_msg_addr();
-        create_ton_jetton_order(from_amount, to_jetton_addr, to_amount, to_master_address, sender_address);
+        create_ton_jetton_order(order_id, from_amount, to_jetton_addr, to_amount, to_master_address, sender_address);
         return ();
     }
 
     if (op == "execute_ton_order"c) {
-        int order_id = in_msg_body~load_uint(256);
+        int order_id = in_msg_body~load_uint(32);
         execute_order(sender_address, sender_address, msg_value, order_id, query_id);
         return ();
     }
 
     if (op == "close_order"c) {
-        int order_id = in_msg_body~load_uint(256);
+        int order_id = in_msg_body~load_uint(32);
         close_order(sender_address, order_id, query_id);
         return ();
     }
@@ -221,15 +225,16 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
 
         if (fwd_op == "create_order"c) {
             int order_type = fwd_cs~load_uint(8);
+            int order_id = fwd_cs~load_uint(32);
             if (order_type == JETTON_JETTON) {
-                create_jetton_jetton_order(sender_address, jetton_amount, fwd_cs, from_address);
+                create_jetton_jetton_order(order_id, sender_address, jetton_amount, fwd_cs, from_address);
             } else {
-                create_jetton_ton_order(sender_address, jetton_amount, fwd_cs, from_address);
+                create_jetton_ton_order(order_id, sender_address, jetton_amount, fwd_cs, from_address);
             }
         }
 
         if (fwd_op == "execute_order"c) {
-            int order_id = fwd_cs~load_uint(256);
+            int order_id = fwd_cs~load_uint(32);
             execute_order(from_address, sender_address, jetton_amount, order_id, fwd_query_id);
         }
 

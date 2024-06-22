@@ -41,7 +41,7 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     return to_contract_address;
 }
 
-() create_ton_order_with_mint(slice owner_address, cell user_order_code, int query_id, int from_amount, slice to_address, int to_amount, slice to_master_address) impure {
+() create_ton_order_with_mint(slice owner_address, cell user_order_code, int query_id, int order_id, int from_amount, slice to_address, int to_amount, slice to_master_address) impure {
     cell state_init = calculate_user_order_state_init(owner_address, my_address(), user_order_code);
     slice to_contract_address = calculate_user_order_address(state_init);
 
@@ -54,6 +54,7 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
         .store_ref(begin_cell()
             .store_uint("create_ton_order"c, 32)
             .store_uint(query_id, 64)
+            .store_uint(order_id, 32)
             .store_coins(from_amount)
             .store_slice(to_address)
             .store_coins(to_amount)
@@ -101,14 +102,14 @@ const exec_fwd_fee = 30000000;  ;; 0.03 TON
     (slice admin_address, cell user_order_code) = load_data();
 
     if (op == "create_ton_order"c) {
+        int order_id = in_msg_body~load_uint(32);
         int from_amount = in_msg_body~load_coins();
-        ;; message should have at least from_amount TONs + fwd fee
-        throw_unless(410, msg_value > from_amount + 10000000);
+        throw_unless(410, msg_value > from_amount + exec_fwd_fee);
         slice to_address = in_msg_body~load_msg_addr();
         int to_amount = in_msg_body~load_coins();
         slice to_master_address = in_msg_body~load_msg_addr();
 
-        create_ton_order_with_mint(sender_address, user_order_code, query_id, from_amount, to_address, to_amount, to_master_address);
+        create_ton_order_with_mint(sender_address, user_order_code, query_id, order_id, from_amount, to_address, to_amount, to_master_address);
         return ();
     }
 

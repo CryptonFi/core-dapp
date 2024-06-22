@@ -75,6 +75,7 @@ describe('MasterOrder', () => {
         const result = await createJettonOrderPosition(
             creator,
             masterOrder,
+            1,
             jetton1.jettonWallet,
             10n,
             jetton2.jettonMinter,
@@ -140,7 +141,7 @@ describe('MasterOrder', () => {
         const user_order_address = await masterOrder.getWalletAddress(creator.address);
         const user_order_jetton2_address = await jetton2.jettonMinter.getWalletAddress(user_order_address);
         const user_order_jetton1_address = await jetton1.jettonMinter.getWalletAddress(user_order_address);
-        await createJettonOrderPosition(creator, masterOrder, jetton1.jettonWallet, 10n, jetton2.jettonMinter, 20n);
+        await createJettonOrderPosition(creator, masterOrder, 1, jetton1.jettonWallet, 10n, jetton2.jettonMinter, 20n);
 
         const user_order = blockchain.openContract(UserOrder.createFromAddress(user_order_address));
         const orders = await user_order.getOrders();
@@ -161,6 +162,7 @@ describe('MasterOrder', () => {
         const result = await masterOrder.sendCreateTonJettonOrder(creator.getSender(), {
             value: toNano('0.2'),
             queryId: 123,
+            orderId: 1,
             fromAmount: toNano('10'),
             toAddress: user_order_jetton2_address,
             toAmount: 20,
@@ -193,6 +195,7 @@ describe('MasterOrder', () => {
         await masterOrder.sendCreateTonJettonOrder(creator.getSender(), {
             value: toNano('0.2'),
             queryId: 123,
+            orderId: 1,
             fromAmount: toNano('10'),
             toAddress: user_order_jetton2_address,
             toAmount: 20,
@@ -222,6 +225,7 @@ describe('MasterOrder', () => {
                 .storeUint(0xc1c6ebf9, 32) // op code - create_order
                 .storeUint(123, 64) // query id
                 .storeUint(OrderType.JETTON_TON, 8)
+                .storeUint(1, 32)
                 .storeCoins(toNano(20))
                 .endCell(),
         });
@@ -294,6 +298,7 @@ describe('MasterOrder', () => {
                 .storeUint(0xc1c6ebf9, 32) // op code - create_order
                 .storeUint(123, 64) // query id
                 .storeUint(OrderType.JETTON_TON, 8)
+                .storeUint(1, 32)
                 .storeCoins(toNano(20))
                 .endCell(),
         });
