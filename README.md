@@ -1,6 +1,6 @@
-# crypton
+# Crypton platform
 
-Decentralized, permissionless protocol where users can create any token exchange orders.
+Decentralized, permissionless platform where users can create any token exchange orders. Supports arbitrary orders between Jettons and TON, i.e. swap Jettons of one type to other Jettons or TON. Created orders can be executed partially or completely.
 
 ## Project structure
 
